@@ -1,0 +1,20 @@
+{
+  "name": "",
+  "homePage": "",
+  "repos": {
+    "https://github.com/scilus/nf-neuro.git": {
+      "modules": {
+        "nf-neuro": {
+          "registration/ants": {
+            "branch": "main",
+            "git_sha": "2b45c6a74dc9b5b793d7e40c6a715f4c07064864",
+            "installed_by": ["modules"]
+          }
+        }
+      },
+      "subworkflows": {
+        "nf-neuro": {}
+      }
+    }
+  }
+}

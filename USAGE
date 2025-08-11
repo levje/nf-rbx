@@ -1,0 +1,69 @@
+Pipeline for RecobundlesX
+=========================
+
+USAGE
+
+nextflow run main.nf --input <path> --atlas_directory <path> [OPTIONAL_ARGUMENTS]
+
+The recommanded atlas is available at https://zenodo.org/records/10103446
+
+Warning
+=======
+Output images in mni space are named "*_mni.nii.gz", if not there are in native space.
+
+If using this pipeline, please read and cite the following publications:
+[1] St-Onge, Etienne, Kurt G. Schilling, and Francois Rheault. "BundleSeg: A versatile, 
+    reliable and reproducible approach to white matter bundle segmentation." International 
+    Workshop on Computational Diffusion MRI. Cham: Springer Nature Switzerland, (2023)
+[2] Rheault, François. "Analyse et reconstruction de faisceaux de la matière
+    blanche." Computer Science. Université de Sherbrooke (2020).
+	(Only chapter #4, in French)
+
+DESCRIPTION
+
+    --input=/path/to/[root]              Root folder containing multiple subjects
+
+                                        [root]
+                                        ├── S1
+                                        │   ├── *fa.nii.gz
+                                        │   └── *.trk
+                                        └── S2
+                                            └── *
+
+    --atlas_directory                   Path of the folder containing atlas
+                                        ├── atlas
+                                        │   └── pop_average
+                                        ├── centroids
+                                        ├── config_fss_1.json
+                                        ├── config_fss_2.json
+                                        └── mni_masked.nii.gz
+
+
+    OPTIONAL ARGUMENTS (current value)
+    --run_average_bundles               Run average bundles ($run_average_bundles)
+    --disable_centroid_transformation   Avoid the transformation of the centroids to the subjects space ($disable_centroid_transformation)
+                                        Does not affect the bundle recognition and cleaning process.
+
+    --minimal_vote_ratio                Percentage of the vote to obtain in order to be considered valid ($minimal_vote_ratio)
+    --seed                              List of random seeds values for the rng ($seed)
+    --outlier_alpha                     Remove spurious streamlines based on shape ($outlier_alpha)
+
+    --register_processes                Number of processes for registration task ($register_processes).
+    --rbx_processes                     Number of processes for bundle recognition task ($rbx_processes).
+    --single_dataset_size_GB            Limit the number of parallel RBx to avoid RAM problem ($single_dataset_size_GB)
+                                        Average tracking files size per subject (round up for safety)
+
+    --processes                         The number of parallel processes to launch ($cpu_count).
+                                        Only affects the local scheduler.
+
+
+AVAILABLE PROFILES (using -profile option (e.g. -profile fully_reproducible,cbrain))
+fully_reproducible                       All the parameters will be set to have 100% reproducible results.
+macos                                    rbx_flow will modify a parameter (scratch) for MacOS users.
+cbrain                                   Nextflow will copy all the output files in publishDir and not use symlinks.
+average_bundles                          The pipeline will run an additional process averaging all bundles.
+essential                                Only perform registration, bundle extraction & cleaning.
+
+NOTES
+- If NOT using containers, the scilpy scripts should be accessible via your PATH environment variable.
+- The intermediate working directory is, by default, set to './work'. To change it, use the '-w WORK_DIR' argument.
