@@ -22,12 +22,13 @@ workflow get_data {
                         "register_processes":"$params.register_processes",
                         "rbx_processes":"$params.rbx_processes",
                         "single_dataset_size_GB":"$params.single_dataset_size_GB",
+                        "disable_centroid_transformation":"$params.disable_centroid_transformation",
                         "cpu_count":"$cpu_count"]
 
             engine = new groovy.text.SimpleTemplateEngine()
             template = engine.createTemplate(usage.text).make(bindings)
             print template.toString()
-            return
+            System.exit(0)
         }
 
         log.info "SCIL RecobundlesX pipeline"
