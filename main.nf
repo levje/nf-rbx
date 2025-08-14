@@ -90,7 +90,7 @@ workflow {
     data = get_data()
 
     anat_for_registration = data.anats.combine(data.atlas_anat)
-        .map {meta, anat, atlas_anat -> [meta, atlas_anat, anat, []]}
+        .map {meta, anat, atlas_anat -> [meta, anat, atlas_anat, []]}
     REGISTRATION_ANTS(anat_for_registration)
 
     if (!params.disable_centroid_transformation) {
@@ -108,12 +108,20 @@ workflow {
         .join(REGISTRATION_ANTS.out.affine)
         .combine(data.atlas_config)
         .combine(data.atlas_directory)
+
     RECOGNIZE_BUNDLES(tractogram_and_transformation)
 
     all_bundles_transfo_for_clean_average = RECOGNIZE_BUNDLES.out.bundles
         .combine(REGISTRATION_ANTS.out.affine, by:0)
         .combine(data.atlas_anat)
     CLEAN_BUNDLES(all_bundles_transfo_for_clean_average)
+
+    if (params.compile_report_script) {
+        for_compile_reports = RECOGNIZE_BUNDLES.out.results
+            .combine(CLEAN_BUNDLES.out.cleaning_reports, by: 0)
+
+        COMPILE_REPORTS(for_compile_reports, params.compile_report_script)
+    }
 
     if (params.run_average_bundles) {
         all_bundle_for_average = CLEAN_BUNDLES.out.bundles
@@ -169,7 +177,7 @@ process RECOGNIZE_BUNDLES {
 
     output:
     tuple val(meta), path("*.trk"), emit: bundles
-    path "results.json"
+    tuple val(meta), path("results.json"), emit: results
     path "logfile.txt"
 
     script:
@@ -187,14 +195,15 @@ process CLEAN_BUNDLES {
 
     container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
         'https://scil.usherbrooke.ca/containers/scilus_2.1.0.sif':
-        'scilus/scilus:2.1.0' }"
+        'mrzarfir/scilus:2.1.0' }"
 
     input:
     tuple val(meta), path(bundles), path(transfo), path(atlas)
 
     output:
-    tuple val(meta), path("${meta.id}__*_cleaned.trk") 
-    path "${meta.id}__*.nii.gz", optional: true, emit: bundles
+    tuple val(meta), path("${meta.id}__*_cleaned.trk"), emit: bundles
+    tuple val(meta), path("${meta.id}__*_report.json"), optional: true, emit: cleaning_reports
+    path "${meta.id}__*.nii.gz", optional: true
 
     script:
     String bundles_list = bundles.join(", ").replace(',', '')
@@ -209,9 +218,9 @@ process CLEAN_BUNDLES {
         fi
 
         scil_bundle_reject_outliers.py \${bundle} "${meta.id}__\${bname}_cleaned.trk" \
-            --alpha $params.outlier_alpha
-            
-        if [ -s "${meta.id}__\${bname}_cleaned.trk" ]; then 
+            --alpha $params.outlier_alpha --out_report "${meta.id}__\${bname}_report.json"
+
+        if [ -s "${meta.id}__\${bname}_cleaned.trk" ]; then
             if ${params.run_average_bundles}; then
                 scil_tractogram_apply_transform.py "${meta.id}__\${bname}_cleaned.trk" \
 		            ${atlas} ${transfo} tmp.trk --remove_invalid -f
@@ -270,5 +279,32 @@ process AVERAGE_BUNDLES {
         fi
     done
     mv tmp/* ./
+    """
+}
+
+process COMPILE_REPORTS {
+    tag "$meta.id"
+
+    container "${ workflow.containerEngine == 'singularity' && !task.ext.singularity_pull_docker_container ?
+        'https://scil.usherbrooke.ca/containers/scilus_2.1.0.sif':
+        'scilus/scilus:2.1.0' }"
+
+    input:
+    tuple val(meta), path(results), path(cleaning_reports)
+    path compile_report_script
+
+    output:
+    tuple val(meta), path("${meta.id}__report_clean.json"), optional: true
+
+    script:
+    // results is a single json file for each subject containing indices for all bundles.
+    // cleaning_reports contains indices about which indices from the results for each bundle is kept
+    // both are json files and we essentially need to update the results.json file to only keep
+    // indices that are marked as inliers for each bundle.
+    """
+    python ${compile_report_script} \
+        --results ${results} \
+        --cleaning_reports ${cleaning_reports} \
+        --out_report ${meta.id}__report_clean.json
     """
 }
